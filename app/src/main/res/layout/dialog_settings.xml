@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/camera_bg"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:id="@+id/tvSettingsTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/settings"
+        android:textColor="@color/white"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="16dp"
+        android:background="#33FFFFFF" />
+
+    <!-- Hardware Capabilities info section -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/device_capabilities"
+        android:textColor="@color/camera_accent"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvCapabilityDetails"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/bg_badge"
+        android:fontFamily="monospace"
+        android:lineSpacingExtra="3dp"
+        android:padding="10dp"
+        android:textColor="@color/white"
+        android:textSize="12sp" />
+
+    <!-- Resolution Selection -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/resolution_label"
+        android:textColor="@color/camera_accent"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <RadioGroup
+        android:id="@+id/rgResolution"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="16dp">
+
+        <RadioButton
+            android:id="@+id/rbResMax"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="@string/resolution_max"
+            android:textColor="@color/white" />
+
+        <RadioButton
+            android:id="@+id/rbResBalanced"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/resolution_medium"
+            android:textColor="@color/white" />
+
+        <RadioButton
+            android:id="@+id/rbResLow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/resolution_low"
+            android:textColor="@color/white" />
+    </RadioGroup>
+
+    <!-- Close button -->
+    <Button
+        android:id="@+id/btnCloseSettings"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:backgroundTint="@color/camera_accent"
+        android:text="@string/close"
+        android:textColor="@color/white" />
+
+</LinearLayout>
