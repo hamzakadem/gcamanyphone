@@ -1,6 +1,6 @@
 # GCam Lite — Standalone Compatible Android Camera
 
-[![Android Build & APK Delivery](https://github.com/REPLACE_WITH_YOUR_USERNAME/GCamCompatibleCamera/actions/workflows/android-build.yml/badge.svg)](https://github.com/REPLACE_WITH_YOUR_USERNAME/GCamCompatibleCamera/actions/workflows/android-build.yml)
+[![Android Build & APK Delivery](https://github.com/hamzakadem/gcamanyphone/actions/workflows/android-build.yml/badge.svg)](https://github.com/hamzakadem/gcamanyphone/actions/workflows/android-build.yml)
 
 **GCam Lite** (`com.gcam.compatible.camera`) is a standalone, lightweight, resilient Android camera application designed from the ground up to bring Google Camera-inspired computational photography (multi-frame noise reduction, adaptive local tone mapping, and edge-preserving sharpening) to **low-end Android devices**, memory-constrained hardware (1GB–3GB RAM), and phones with limited Camera2 API support (`LEGACY` and `LIMITED` hardware levels) that do not support RAW sensor streams.
 
