@@ -26,12 +26,10 @@ class BurstAccumulatorTest {
         val width = 2
         val height = 2
 
-        // Frame 1: all pixels 100 in R, G, B
         val b1 = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val pixels1 = IntArray(4) { (0xFF shl 24) or (100 shl 16) or (100 shl 8) or 100 }
         b1.setPixels(pixels1, 0, width, 0, 0, width, height)
 
-        // Frame 2: all pixels 200 in R, G, B
         val b2 = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val pixels2 = IntArray(4) { (0xFF shl 24) or (200 shl 16) or (200 shl 8) or 200 }
         b2.setPixels(pixels2, 0, width, 0, 0, width, height)
@@ -44,9 +42,32 @@ class BurstAccumulatorTest {
         val g = (mergedPixels[0] shr 8) and 0xFF
         val b = mergedPixels[0] and 0xFF
 
-        // Average of 100 and 200 is 150
         assertEquals(150, r)
         assertEquals(150, g)
         assertEquals(150, b)
+    }
+
+    @Test
+    fun testIncrementalBurstAccumulator15Frames() {
+        val width = 2
+        val height = 2
+        val incAccumulator = BurstAccumulator.IncrementalBurstAccumulator(width, height)
+
+        // Add 15 frames with pixel value 150 each
+        for (i in 1..15) {
+            val frame = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val pixels = IntArray(4) { (0xFF shl 24) or (150 shl 16) or (150 shl 8) or 150 }
+            frame.setPixels(pixels, 0, width, 0, 0, width, height)
+            incAccumulator.addFrame(frame, autoRecycle = true)
+        }
+
+        assertEquals(15, incAccumulator.frameCount)
+
+        val merged = incAccumulator.buildResult()
+        val mergedPixels = IntArray(4)
+        merged.getPixels(mergedPixels, 0, width, 0, 0, width, height)
+
+        val r = (mergedPixels[0] shr 16) and 0xFF
+        assertEquals("Averaging 15 frames of 150 must equal 150", 150, r)
     }
 }

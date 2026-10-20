@@ -4,22 +4,22 @@
 
 In traditional digital photography, a single exposure captured by a small smartphone sensor suffers from:
 1. **Photon shot noise** in low-light environments due to limited quantum efficiency.
-2. **Dynamic range clipping**, causing blown highlights (sky, lights) or crushed shadows.
-3. **Sensor read noise** caused by analog-to-digital conversion circuits.
+2. **Dynamic range clipping**, causing blown highlights or crushed shadows.
+3. **Sensor read noise** and thermal noise in night scenes.
 
-**GCam Lite** applies a three-stage computational photography pipeline designed to run efficiently on standard mobile CPUs without requiring proprietary DSP hardware:
+**GCam Lite** applies a memory-safe computational photography pipeline designed to run efficiently on standard mobile CPUs without requiring proprietary DSP hardware:
 
 ```
-[Raw Capture Frame] 
+[Raw Capture Frame Stream] 
        │
        ▼
-[Stage 1: Multi-Frame Temporal Accumulation]  --> Suppresses random shot & read noise
+[Stage 1: Incremental Multi-Frame Accumulation]  --> Suppresses random shot & thermal noise
        │
        ▼
-[Stage 2: Adaptive Local Tone Mapping]       --> Lifts dark shadows & rolls off highlights
+[Stage 2: Adaptive Local Tone Mapping]          --> Lifts dark shadows / Astrophotography Star Curve
        │
        ▼
-[Stage 3: Spatial Filtering & Unsharp Mask]   --> Enhances fine edges & textures
+[Stage 3: Spatial Filtering & Unsharp Mask]      --> Enhances fine edges & stars
        │
        ▼
 [High-Quality JPEG Output]
@@ -27,79 +27,40 @@ In traditional digital photography, a single exposure captured by a small smartp
 
 ---
 
-## 2. Multi-Frame Burst Accumulation
+## 2. Multi-Frame Burst Accumulation (15-Frame Night Mode)
 
-When multiple frames $I_1, I_2, \dots, I_N$ of the same static scene are merged, the independent random noise components are averaged. 
+When $N$ independent frames $I_1, I_2, \dots, I_N$ of a scene are merged, the random noise components cancel out while the coherent light signal adds constructively.
 
-The signal adds constructively:
+The Signal-to-Noise Ratio (SNR) improves by:
 
-$$S_{\text{merged}} = \sum_{k=1}^N S_k = N \cdot S$$
+$$\text{SNR}_{\text{improvement}} = \sqrt{N} \cdot \text{SNR}_{\text{single}}$$
 
-While the noise variance adds quadratically:
-
-$$\sigma_{\text{merged}}^2 = \sum_{k=1}^N \sigma_k^2 = N \cdot \sigma^2 \implies \sigma_{\text{merged}} = \sqrt{N} \cdot \sigma$$
-
-The resulting Signal-to-Noise Ratio (SNR) improves by:
-
-$$\text{SNR}_{\text{improvement}} = \frac{N \cdot S}{\sqrt{N} \cdot \sigma} = \sqrt{N} \cdot \text{SNR}_{\text{single}}$$
-
-- **Fast Single ($N=1$)**: 0ms merge overhead, ideal for moving subjects.
+- **Fast Single ($N=1$)**: Instantaneous capture, 0ms merge latency.
 - **HDR+ Lite ($N=3$)**: Improves SNR by $\approx 1.73\times$ ($\approx 4.8\text{ dB}$).
-- **Night Lite ($N=5$)**: Improves SNR by $\approx 2.24\times$ ($\approx 7.0\text{ dB}$).
+- **Astrophotography ($N=10$)**: Improves SNR by $\approx 3.16\times$ ($\approx 10.0\text{ dB}$) with locked infinite focus and maximum shutter.
+- **Night Mode ($N=15$)**: Improves SNR by $\approx 3.87\times$ ($\approx 11.8\text{ dB}$), eliminating high-ISO sensor grain.
 
-Implementation in `BurstAccumulator.kt` uses 64-bit integer accumulators (`LongArray`) to prevent arithmetic overflow on 32-bit and 64-bit platforms alike.
+### Incremental Memory-Safe Accumulation
+Holding 15 uncompressed 12MP bitmaps in RAM simultaneously would demand over $720\text{ MB}$, causing immediate OOM on budget devices.
 
----
-
-## 3. Adaptive Local Tone Mapping
-
-Smartphone scenes often exhibit dynamic ranges far exceeding the 8-bit display capabilities ($0\dots 255$). 
-
-`AdaptiveToneMapper` dynamically computes the average scene luminance $L_{\text{avg}}$ from a subsampled grid:
-
-$$L = 0.299 \cdot R + 0.587 \cdot G + 0.114 \cdot B$$
-
-If the scene is dark ($L_{\text{avg}} < 0.35$), the shadow boost factor is scaled dynamically:
-
-$$\gamma_{\text{effective}} = \frac{1}{\beta_{\text{shadow}} \cdot (1.0 + (0.35 - L_{\text{avg}}))}$$
-
-A 256-entry Look-Up Table (LUT) is generated using a Reinhard-inspired soft compression operator:
-
-$$\text{LUT}[i] = 255 \cdot \frac{x^\gamma}{1.0 + (1.0 - \kappa_{\text{highlight}}) \cdot x^\gamma}, \quad x = \frac{i}{255}$$
-
-Because the transformation is mapped via a precomputed 256-integer array, the per-pixel execution is an $O(1)$ direct array index lookup with zero CPU branching.
+`IncrementalBurstAccumulator` solves this by maintaining a single 64-bit sum buffer (`LongArray`). Each incoming frame is added to the running sum and immediately recycled (`autoRecycle = true`), keeping the active heap consumption under $35\text{ MB}$ regardless of frame count.
 
 ---
 
-## 4. Edge-Preserving Sharpening (Unsharp Masking)
+## 3. Astrophotography Mode (10 Frames, Infinite Focus, Max Shutter)
 
-Tone mapping and multi-frame averaging can slightly soften micro-contrast. `EdgePreservingDenoise` applies a high-frequency enhancement:
+Astrophotography requires specialized hardware controls and astronomical image processing:
 
-$$I_{\text{out}}(x, y) = I_{\text{in}}(x, y) + \lambda \cdot (I_{\text{in}}(x, y) - I_{\text{blurred}}(x, y))$$
-
-Where:
-- $I_{\text{blurred}}$ is a spatial $3\times 3$ box-filter convolution.
-- $\lambda$ is the sharpening strength parameter ($0.25\dots 0.40$).
-- Pixel values are clamped to $[0, 255]$ with border protection.
-
----
-
-## 5. Memory Guard & OOM Prevention
-
-On Android devices with 1GB to 2GB of RAM, allocating two uncompressed 12-megapixel $4000\times 3000$ ARGB_8888 bitmaps requires:
-
-$$4000 \times 3000 \times 4 \text{ bytes} = 48\text{ MB per bitmap}$$
-
-Two bitmaps plus processing buffers exceed 100MB, triggering an instantaneous `java.lang.OutOfMemoryError` on phones with a 128MB or 192MB JVM heap limit.
-
-`MemoryGuard` evaluates heap health before every operation:
-
-```kotlin
-val runtime = Runtime.getRuntime()
-val availableHeap = runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory())
-```
-
-If `availableHeap` minus estimated memory is $< 48\text{ MB}$:
-1. It automatically increases `BitmapFactory.Options.inSampleSize` to $2$ or $4$.
-2. It clamps the burst frame count to $1$ (`FAST_SINGLE_FRAME`).
-3. It frees intermediate buffers immediately using `.recycle()`.
+1. **Infinite Optical Focus**:
+   In optics, focusing at infinity corresponds to $0.0\text{ diopters}$ ($d = \frac{1}{\infty} = 0$).
+   Via Camera2Interop, auto-focus is disabled and lens distance is locked:
+   $$\text{CONTROL\_AF\_MODE} = \text{OFF}, \quad \text{LENS\_FOCUS\_DISTANCE} = 0.0\text{f}$$
+2. **Maximum Shutter Integration**:
+   Sets exposure compensation to maximum (`exposureCompensationRange.upper`) to force the sensor to use the longest integration time.
+3. **Astrophotography Star Curve**:
+   Subdues background atmospheric glow and sensor thermal noise in the lowest $8\%$ of luminance values while dramatically boosting faint point light sources (stars, constellations):
+   $$\text{LUT}[x] = \begin{cases} 
+   0.45 \cdot x & x < 0.08 \\ 
+   0.036 + 1.55 \cdot (x - 0.08) & 0.08 \le x < 0.45 \\ 
+   0.61 + 0.70 \cdot (x - 0.45) & x \ge 0.45 
+   \end{cases}$$

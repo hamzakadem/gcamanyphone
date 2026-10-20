@@ -17,13 +17,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.ImageCapture
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.gcam.compatible.camera.R
 import com.gcam.compatible.camera.camera.CameraBackend
 import com.gcam.compatible.camera.camera.CameraXBackend
 import com.gcam.compatible.camera.data.CameraCapabilities
-import com.gcam.compatible.camera.data.CameraHardwareLevel
 import com.gcam.compatible.camera.data.ImageProcessingProfile
 import com.gcam.compatible.camera.databinding.ActivityMainBinding
 import com.gcam.compatible.camera.databinding.DialogSettingsBinding
@@ -34,7 +32,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Main Camera Activity providing the viewfinder, interactive controls,
- * adaptive computational photography pipeline, and photo review thumbnail.
+ * adaptive computational photography pipeline, 15-frame Night Mode, and Astrophotography.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -106,6 +104,11 @@ class MainActivity : AppCompatActivity() {
         binding.tvProfileChip.setOnClickListener {
             activeProfile = activeProfile.next()
             updateProfileChipUI()
+            cameraBackend.applyProfileHardwareSettings(activeProfile)
+
+            if (activeProfile.isAstrophotography) {
+                Toast.makeText(this, R.string.astro_info_toast, Toast.LENGTH_SHORT).show()
+            }
         }
 
         // Settings Button
@@ -142,6 +145,7 @@ class MainActivity : AppCompatActivity() {
             previewView = binding.viewFinder,
             onInitialized = { caps ->
                 updateCapabilityBadge(caps)
+                cameraBackend.applyProfileHardwareSettings(activeProfile)
             },
             onError = { error ->
                 Toast.makeText(this, "Camera initialization error: ${error.message}", Toast.LENGTH_LONG).show()
@@ -154,12 +158,6 @@ class MainActivity : AppCompatActivity() {
         val levelText = "Camera2: ${caps.hardwareLevel.displayName} | " +
                 if (caps.supportsRawSensor) "RAW Capable" else "GCam Lite (JPEG/YUV)"
         binding.tvHardwareBadge.text = levelText
-
-        // Adapt default profile if device is heavily constrained
-        if (caps.isLowEndDevice && activeProfile == ImageProcessingProfile.NIGHT_ENHANCED) {
-            activeProfile = ImageProcessingProfile.FAST_SINGLE_FRAME
-            updateProfileChipUI()
-        }
     }
 
     private fun updateFlashIcon(mode: Int) {
@@ -184,6 +182,7 @@ class MainActivity : AppCompatActivity() {
             ImageProcessingProfile.FAST_SINGLE_FRAME -> getString(R.string.mode_fast)
             ImageProcessingProfile.BALANCED_HDR -> getString(R.string.mode_hdr)
             ImageProcessingProfile.NIGHT_ENHANCED -> getString(R.string.mode_night)
+            ImageProcessingProfile.ASTROPHOTOGRAPHY -> getString(R.string.mode_astro)
         }
         binding.tvProfileChip.text = title
     }
@@ -192,17 +191,30 @@ class MainActivity : AppCompatActivity() {
         binding.btnShutter.isEnabled = false
         vibrateShutter()
 
-        cameraBackend.takePicture(
+        binding.layoutProcessing.visibility = View.VISIBLE
+        binding.tvProcessingStatus.text = getString(R.string.capturing_frame_progress, 1, activeProfile.burstFrameCount)
+
+        cameraBackend.takePictureBurst(
             profile = activeProfile,
-            onProcessingStarted = {
+            onCaptureProgress = { current, total ->
                 binding.layoutProcessing.visibility = View.VISIBLE
-                binding.tvProcessingStatus.text = getString(R.string.processing_photo)
+                binding.tvProcessingStatus.text = getString(R.string.capturing_frame_progress, current.coerceAtLeast(1), total)
+                vibrateShutter()
             },
-            onPictureCaptured = { jpegBytes, rotation ->
+            onBurstComplete = { frames, rotation ->
                 lifecycleScope.launch {
                     try {
-                        // Computational photography processing
-                        val result = imageProcessor.processCapture(jpegBytes, rotation, activeProfile)
+                        binding.tvProcessingStatus.text = getString(R.string.processing_photo)
+
+                        // Computational photography burst processing
+                        val result = imageProcessor.processCaptureBurst(
+                            frames = frames,
+                            rotationDegrees = rotation,
+                            profile = activeProfile,
+                            onProgress = { stage ->
+                                binding.tvProcessingStatus.text = stage
+                            }
+                        )
 
                         // Save to MediaStore
                         val saveResult = mediaSaver.saveImage(result.jpegBytes, activeProfile.title)
@@ -212,7 +224,7 @@ class MainActivity : AppCompatActivity() {
                             updateThumbnail(result.jpegBytes)
                             Toast.makeText(
                                 this@MainActivity,
-                                "${getString(R.string.photo_saved)} (${result.processingTimeMs}ms)",
+                                "${getString(R.string.photo_saved)} (${result.framesMerged} frames, ${result.processingTimeMs}ms)",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }.onFailure { error ->
@@ -280,10 +292,10 @@ class MainActivity : AppCompatActivity() {
         try {
             val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator?.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+                vibrator?.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator?.vibrate(50)
+                vibrator?.vibrate(40)
             }
         } catch (_: Exception) {}
     }

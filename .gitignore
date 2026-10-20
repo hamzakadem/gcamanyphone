@@ -14,3 +14,4 @@
 
 # Output artifacts generated locally
 /output/
+*.apk

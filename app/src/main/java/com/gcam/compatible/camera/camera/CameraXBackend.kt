@@ -1,11 +1,13 @@
 package com.gcam.compatible.camera.camera
 
 import android.content.Context
+import android.hardware.camera2.CaptureRequest
 import android.util.Log
 import android.util.Size
 import android.view.MotionEvent
+import androidx.camera.camera2.interop.Camera2CameraControl
+import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.core.Camera
-import androidx.camera.core.CameraControl
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
@@ -18,9 +20,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.gcam.compatible.camera.data.CameraCapabilities
-import com.gcam.compatible.camera.data.CameraHardwareLevel
 import com.gcam.compatible.camera.data.ImageProcessingProfile
-import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -28,6 +28,7 @@ import java.util.concurrent.Executors
 /**
  * CameraX implementation of CameraBackend. Provides resilient multi-vendor support,
  * vendor quirk workarounds, and seamless operation across Camera2 LEGACY, LIMITED, and FULL devices.
+ * Supports infinite focus and maximum shutter exposure for Astrophotography.
  */
 class CameraXBackend(private val context: Context) : CameraBackend {
 
@@ -121,6 +122,46 @@ class CameraXBackend(private val context: Context) : CameraBackend {
         resolutionTier = tier
     }
 
+    /**
+     * Applies specialized hardware parameters for the active profile (e.g. Infinite Focus and Max Shutter for Astrophotography).
+     */
+    @androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)
+    override fun applyProfileHardwareSettings(profile: ImageProcessingProfile) {
+        val cam = camera ?: return
+        try {
+            val camera2Control = Camera2CameraControl.from(cam.cameraControl)
+
+            if (profile.useInfiniteFocus) {
+                // Astrophotography mode: Lock focus to optical infinity (0.0 diopters = 1/infinity meters)
+                val options = CaptureRequestOptions.Builder()
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
+                    .setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, 0.0f)
+                    .build()
+                camera2Control.setCaptureRequestOptions(options)
+                Log.i(TAG, "Astrophotography: Locked focus to infinity (0.0 diopters)")
+            } else {
+                // Standard mode: Restore continuous auto-focus
+                val options = CaptureRequestOptions.Builder()
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+                    .build()
+                camera2Control.setCaptureRequestOptions(options)
+            }
+
+            if (profile.useMaxShutter) {
+                // Astrophotography mode: maximize exposure compensation for longest possible sensor integration
+                val expRange = cam.cameraInfo.exposureState.exposureCompensationRange
+                if (expRange.contains(expRange.upper)) {
+                    cam.cameraControl.setExposureCompensationIndex(expRange.upper)
+                    Log.i(TAG, "Astrophotography: Maximized exposure index to ${expRange.upper}")
+                }
+            } else {
+                cam.cameraControl.setExposureCompensationIndex(0)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to apply profile hardware overrides", e)
+        }
+    }
+
     private fun bindCameraUseCases(lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
         val provider = cameraProvider ?: return
 
@@ -140,7 +181,6 @@ class CameraXBackend(private val context: Context) : CameraBackend {
             .setFlashMode(flashMode)
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
 
-        // Apply resolution constraint if requested for low-end / low RAM tier
         when (resolutionTier) {
             RESOLUTION_TIER_BALANCED -> {
                 captureBuilder.setTargetResolution(Size(1920, 1080))
@@ -163,10 +203,13 @@ class CameraXBackend(private val context: Context) : CameraBackend {
         )
     }
 
-    override fun takePicture(
+    /**
+     * Executes sequential multi-frame burst capture (e.g. 15 frames for Night, 10 frames for Astro).
+     */
+    override fun takePictureBurst(
         profile: ImageProcessingProfile,
-        onProcessingStarted: () -> Unit,
-        onPictureCaptured: (ByteArray, Int) -> Unit,
+        onCaptureProgress: (current: Int, total: Int) -> Unit,
+        onBurstComplete: (List<ByteArray>, Int) -> Unit,
         onError: (Throwable) -> Unit
     ) {
         val capture = imageCapture
@@ -175,35 +218,71 @@ class CameraXBackend(private val context: Context) : CameraBackend {
             return
         }
 
-        onProcessingStarted()
+        // Apply hardware profile overrides prior to firing shutter
+        applyProfileHardwareSettings(profile)
 
-        capture.takePicture(
-            cameraExecutor,
-            object : ImageCapture.OnImageCapturedCallback() {
-                override fun onCaptureSuccess(image: ImageProxy) {
-                    try {
-                        val rotation = image.imageInfo.rotationDegrees
-                        val bytes = imageProxyToByteArray(image)
-                        image.close()
-                        ContextCompat.getMainExecutor(context).execute {
-                            onPictureCaptured(bytes, rotation)
+        val targetCount = profile.burstFrameCount
+        val collectedFrames = mutableListOf<ByteArray>()
+        var lastRotation = 0
+
+        fun captureNextFrame() {
+            capture.takePicture(
+                cameraExecutor,
+                object : ImageCapture.OnImageCapturedCallback() {
+                    override fun onCaptureSuccess(image: ImageProxy) {
+                        try {
+                            lastRotation = image.imageInfo.rotationDegrees
+                            val bytes = imageProxyToByteArray(image)
+                            image.close()
+
+                            synchronized(collectedFrames) {
+                                collectedFrames.add(bytes)
+                                val currentCount = collectedFrames.size
+
+                                ContextCompat.getMainExecutor(context).execute {
+                                    onCaptureProgress(currentCount, targetCount)
+                                }
+
+                                if (currentCount < targetCount) {
+                                    captureNextFrame()
+                                } else {
+                                    ContextCompat.getMainExecutor(context).execute {
+                                        onBurstComplete(ArrayList(collectedFrames), lastRotation)
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            image.close()
+                            handleCaptureError(e)
                         }
-                    } catch (e: Exception) {
-                        image.close()
-                        ContextCompat.getMainExecutor(context).execute {
-                            onError(e)
+                    }
+
+                    override fun onError(exception: ImageCaptureException) {
+                        Log.e(TAG, "Burst frame capture error: ${exception.message}", exception)
+                        handleCaptureError(exception)
+                    }
+
+                    private fun handleCaptureError(t: Throwable) {
+                        synchronized(collectedFrames) {
+                            if (collectedFrames.isNotEmpty()) {
+                                // If we already gathered frames, complete gracefully with what we have
+                                Log.w(TAG, "Recovering from error with ${collectedFrames.size} captured frames")
+                                ContextCompat.getMainExecutor(context).execute {
+                                    onBurstComplete(ArrayList(collectedFrames), lastRotation)
+                                }
+                            } else {
+                                ContextCompat.getMainExecutor(context).execute {
+                                    onError(t)
+                                }
+                            }
                         }
                     }
                 }
+            )
+        }
 
-                override fun onError(exception: ImageCaptureException) {
-                    Log.e(TAG, "Image capture failed", exception)
-                    ContextCompat.getMainExecutor(context).execute {
-                        onError(exception)
-                    }
-                }
-            }
-        )
+        onCaptureProgress(0, targetCount)
+        captureNextFrame()
     }
 
     override fun focusOnPoint(previewView: PreviewView, event: MotionEvent): Boolean {

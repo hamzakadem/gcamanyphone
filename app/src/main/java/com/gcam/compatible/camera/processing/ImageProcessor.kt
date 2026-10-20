@@ -11,6 +11,7 @@ import java.io.ByteArrayOutputStream
 
 /**
  * Computational photography coordinator that manages the complete image post-processing pipeline.
+ * Supports memory-safe incremental multi-frame burst merging (15 frames in Night Mode, 10 frames in Astro).
  */
 class ImageProcessor(
     private val memoryGuard: MemoryGuard = MemoryGuard(),
@@ -25,18 +26,21 @@ class ImageProcessor(
     }
 
     /**
-     * Processes captured JPEG bytes with the specified profile on a background coroutine.
+     * Processes a burst of captured frames (e.g. 15 frames for Night Mode, 10 frames for Astrophotography).
+     * Decodes and accumulates frames incrementally to prevent OutOfMemoryError.
      */
-    suspend fun processCapture(
-        jpegBytes: ByteArray,
+    suspend fun processCaptureBurst(
+        frames: List<ByteArray>,
         rotationDegrees: Int,
-        profile: ImageProcessingProfile
+        profile: ImageProcessingProfile,
+        onProgress: ((String) -> Unit)? = null
     ): ProcessedImageResult = withContext(Dispatchers.Default) {
+        require(frames.isNotEmpty()) { "Captured frames list must not be empty" }
         val startTime = System.currentTimeMillis()
 
-        // Decode bounds to calculate safe inSampleSize
+        // Step 1: Decode bounds from the first frame to determine safe inSampleSize
         val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size, boundsOptions)
+        BitmapFactory.decodeByteArray(frames[0], 0, frames[0].size, boundsOptions)
 
         val inSampleSize = memoryGuard.calculateInSampleSize(boundsOptions, MAX_PROCESSING_DIMENSION)
 
@@ -46,49 +50,66 @@ class ImageProcessor(
             inMutable = true
         }
 
-        val decodedBitmap = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size, decodeOptions)
-            ?: throw IllegalStateException("Failed to decode captured image bytes into Bitmap")
+        // Step 2: Decode the base frame and apply rotation
+        onProgress?.invoke("Decoding base frame...")
+        val baseDecoded = BitmapFactory.decodeByteArray(frames[0], 0, frames[0].size, decodeOptions)
+            ?: throw IllegalStateException("Failed to decode base image frame")
 
-        // Handle sensor orientation rotation
-        val orientedBitmap = if (rotationDegrees != 0) {
-            val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
-            val rotated = Bitmap.createBitmap(
-                decodedBitmap,
-                0,
-                0,
-                decodedBitmap.width,
-                decodedBitmap.height,
-                matrix,
-                true
-            )
-            if (rotated != decodedBitmap) {
-                decodedBitmap.recycle()
-            }
-            rotated
+        val baseBitmap = rotateBitmapIfNeeded(baseDecoded, rotationDegrees)
+        val width = baseBitmap.width
+        val height = baseBitmap.height
+
+        val mergedBitmap: Bitmap
+        val actualMergedCount: Int
+
+        if (frames.size == 1) {
+            mergedBitmap = baseBitmap
+            actualMergedCount = 1
         } else {
-            decodedBitmap
+            // Incremental multi-frame accumulation (15 frames Night / 10 frames Astro)
+            val accumulator = BurstAccumulator.IncrementalBurstAccumulator(width, height)
+            accumulator.addFrame(baseBitmap, autoRecycle = true)
+
+            for (i in 1 until frames.size) {
+                onProgress?.invoke("Merging frame ${i + 1} of ${frames.size}...")
+                try {
+                    val frameDecoded = BitmapFactory.decodeByteArray(frames[i], 0, frames[i].size, decodeOptions)
+                    if (frameDecoded != null) {
+                        val oriented = rotateBitmapIfNeeded(frameDecoded, rotationDegrees)
+                        accumulator.addFrame(oriented, autoRecycle = true)
+                    }
+                } catch (e: OutOfMemoryError) {
+                    Log.w(TAG, "OOM during frame $i decode; completing with accumulated frames", e)
+                    break
+                }
+            }
+
+            mergedBitmap = accumulator.buildResult()
+            actualMergedCount = accumulator.frameCount
         }
 
-        // Apply computational photography stages
-        var currentBitmap = orientedBitmap
+        var currentBitmap = mergedBitmap
 
-        // Stage 1: Tone Mapping
+        // Step 3: Adaptive Tone Mapping (or specialized Astrophotography curve)
+        onProgress?.invoke(if (profile.isAstrophotography) "Applying Astrophotography Star Curve..." else "Applying Adaptive Tone Mapping...")
         try {
             val toneMapped = toneMapper.applyToneMapping(
                 currentBitmap,
                 shadowBoost = profile.shadowBoostFactor,
-                highlightCompress = profile.highlightCompressFactor
+                highlightCompress = profile.highlightCompressFactor,
+                isAstrophotography = profile.isAstrophotography
             )
             if (toneMapped != currentBitmap) {
                 currentBitmap.recycle()
             }
             currentBitmap = toneMapped
         } catch (e: OutOfMemoryError) {
-            Log.w(TAG, "OOM during tone mapping stage; skipping to preserve image", e)
+            Log.w(TAG, "OOM during tone mapping stage; skipping", e)
         }
 
-        // Stage 2: Sharpening and Edge Preservation
+        // Step 4: Spatial Sharpening and Edge Preservation
         if (profile.sharpenStrength > 0.05f) {
+            onProgress?.invoke("Sharpening fine details...")
             try {
                 val sharpened = edgeDenoise.applyUnsharpMask(
                     currentBitmap,
@@ -103,26 +124,37 @@ class ImageProcessor(
             }
         }
 
-        // Encode to final high quality JPEG
+        // Step 5: High-Quality JPEG Encoding
+        onProgress?.invoke("Compressing output photo...")
         val outputStream = ByteArrayOutputStream()
         currentBitmap.compress(Bitmap.CompressFormat.JPEG, 95, outputStream)
         val finalBytes = outputStream.toByteArray()
 
-        val width = currentBitmap.width
-        val height = currentBitmap.height
+        val finalWidth = currentBitmap.width
+        val finalHeight = currentBitmap.height
         currentBitmap.recycle()
 
         val elapsed = System.currentTimeMillis() - startTime
-        Log.i(TAG, "Image processed in ${elapsed}ms: ${width}x${height}, size=${finalBytes.size / 1024}KB")
+        Log.i(TAG, "Burst capture completed in ${elapsed}ms: ${finalWidth}x${finalHeight}, merged=$actualMergedCount frames")
 
         ProcessedImageResult(
             jpegBytes = finalBytes,
-            width = width,
-            height = height,
+            width = finalWidth,
+            height = finalHeight,
             processingTimeMs = elapsed,
             profileUsed = profile,
-            framesMerged = 1
+            framesMerged = actualMergedCount
         )
+    }
+
+    private fun rotateBitmapIfNeeded(bitmap: Bitmap, rotationDegrees: Int): Bitmap {
+        if (rotationDegrees == 0) return bitmap
+        val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        if (rotated != bitmap) {
+            bitmap.recycle()
+        }
+        return rotated
     }
 
     data class ProcessedImageResult(

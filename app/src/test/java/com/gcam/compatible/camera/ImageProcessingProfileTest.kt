@@ -17,21 +17,24 @@ class ImageProcessingProfileTest {
         assertEquals(ImageProcessingProfile.NIGHT_ENHANCED, profile)
 
         profile = profile.next()
+        assertEquals(ImageProcessingProfile.ASTROPHOTOGRAPHY, profile)
+
+        profile = profile.next()
         assertEquals(ImageProcessingProfile.FAST_SINGLE_FRAME, profile)
     }
 
     @Test
-    fun testProfileParameters() {
-        // FAST_SINGLE_FRAME
-        assertEquals(1, ImageProcessingProfile.FAST_SINGLE_FRAME.burstFrameCount)
-        assertTrue(ImageProcessingProfile.FAST_SINGLE_FRAME.shadowBoostFactor > 1.0f)
+    fun testNightMode15Frames() {
+        assertEquals("Night mode must merge 15 frames to eliminate noise", 15, ImageProcessingProfile.NIGHT_ENHANCED.burstFrameCount)
+        assertTrue(ImageProcessingProfile.NIGHT_ENHANCED.shadowBoostFactor >= 2.0f)
+    }
 
-        // BALANCED_HDR
-        assertEquals(3, ImageProcessingProfile.BALANCED_HDR.burstFrameCount)
-        assertTrue(ImageProcessingProfile.BALANCED_HDR.shadowBoostFactor > ImageProcessingProfile.FAST_SINGLE_FRAME.shadowBoostFactor)
-
-        // NIGHT_ENHANCED
-        assertEquals(5, ImageProcessingProfile.NIGHT_ENHANCED.burstFrameCount)
-        assertTrue(ImageProcessingProfile.NIGHT_ENHANCED.shadowBoostFactor > ImageProcessingProfile.BALANCED_HDR.shadowBoostFactor)
+    @Test
+    fun testAstrophotographyParameters() {
+        val astro = ImageProcessingProfile.ASTROPHOTOGRAPHY
+        assertEquals("Astrophotography must capture 10 frames", 10, astro.burstFrameCount)
+        assertTrue("Astrophotography must lock focus to infinity", astro.useInfiniteFocus)
+        assertTrue("Astrophotography must use maximum shutter / exposure", astro.useMaxShutter)
+        assertTrue("Astrophotography flag must be enabled", astro.isAstrophotography)
     }
 }

@@ -10,8 +10,11 @@
     <string name="flash_off">Flash: Off</string>
     <string name="flash_torch">Flash: Torch</string>
     <string name="mode_fast">Fast (Single)</string>
-    <string name="mode_hdr">HDR+ Lite (Multi-frame)</string>
-    <string name="mode_night">Night Lite</string>
+    <string name="mode_hdr">HDR+ Lite (3x)</string>
+    <string name="mode_night">Night Mode (15x)</string>
+    <string name="mode_astro">Astro (10x ∞ Focus)</string>
+    <string name="astro_info_toast">Astrophotography Mode: 10 frames, Infinite Focus, Max Shutter</string>
+    <string name="capturing_frame_progress">Capturing frame %1$d of %2$d…</string>
     <string name="settings">Settings</string>
     <string name="device_capabilities">Hardware Capabilities</string>
     <string name="processing_photo">Processing photo…</string>

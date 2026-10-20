@@ -32,25 +32,33 @@ class AdaptiveToneMapperTest {
         )
         for (i in 1 until lut.size) {
             assertTrue(
-                "Tone curve must be non-decreasing to prevent posterization: index $i (${lut[i]}) < index ${i - 1} (${lut[i - 1]})",
+                "Tone curve must be non-decreasing: index $i (${lut[i]}) < index ${i - 1} (${lut[i - 1]})",
                 lut[i] >= lut[i - 1]
             )
         }
     }
 
     @Test
+    fun testAstroToneCurveLut() {
+        val astroLut = toneMapper.buildAstroToneCurveLut()
+        assertEquals(256, astroLut.size)
+        for (i in astroLut.indices) {
+            assertTrue("Astro LUT values must be within 0..255, index $i was ${astroLut[i]}", astroLut[i] in 0..255)
+        }
+        // Black stays black
+        assertEquals(0, astroLut[0])
+    }
+
+    @Test
     fun testEstimateAverageLuminance() {
-        // Pure black pixels
         val blackPixels = IntArray(100) { 0xFF000000.toInt() }
         val blackLum = toneMapper.estimateAverageLuminance(blackPixels)
         assertEquals(0.0f, blackLum, 0.01f)
 
-        // Pure white pixels
         val whitePixels = IntArray(100) { 0xFFFFFFFF.toInt() }
         val whiteLum = toneMapper.estimateAverageLuminance(whitePixels)
         assertEquals(1.0f, whiteLum, 0.01f)
 
-        // Empty array fallback
         val emptyLum = toneMapper.estimateAverageLuminance(IntArray(0))
         assertEquals(0.5f, emptyLum, 0.01f)
     }

@@ -5,7 +5,6 @@ import androidx.camera.view.PreviewView
 import androidx.lifecycle.LifecycleOwner
 import com.gcam.compatible.camera.data.CameraCapabilities
 import com.gcam.compatible.camera.data.ImageProcessingProfile
-import java.io.File
 
 /**
  * Common contract for camera implementations.
@@ -27,16 +26,18 @@ interface CameraBackend {
         onError: (Throwable) -> Unit
     )
 
-    fun toggleFlash(): Int // returns the new flash mode int
+    fun toggleFlash(): Int
 
     fun getFlashMode(): Int
 
-    fun setTargetResolutionTier(tier: Int) // 0: Max, 1: 12MP/1080p, 2: 720p/Low RAM
+    fun setTargetResolutionTier(tier: Int)
 
-    fun takePicture(
+    fun applyProfileHardwareSettings(profile: ImageProcessingProfile)
+
+    fun takePictureBurst(
         profile: ImageProcessingProfile,
-        onProcessingStarted: () -> Unit,
-        onPictureCaptured: (ByteArray, Int) -> Unit,
+        onCaptureProgress: (current: Int, total: Int) -> Unit,
+        onBurstComplete: (List<ByteArray>, Int) -> Unit,
         onError: (Throwable) -> Unit
     )
 
