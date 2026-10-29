@@ -43,6 +43,7 @@ import java.util.concurrent.Executors
  * vendor quirk workarounds, 4K/1080p Video recording with full manual controls
  * (ISO, Shutter Speed, White Balance), and OOM-free burst capture up to 20+ frames.
  */
+@androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)
 class CameraXBackend(private val context: Context) : CameraBackend {
 
     companion object {
