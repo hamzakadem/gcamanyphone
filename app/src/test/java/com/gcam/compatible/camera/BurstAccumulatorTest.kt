@@ -3,6 +3,7 @@ package com.gcam.compatible.camera
 import android.graphics.Bitmap
 import com.gcam.compatible.camera.processing.BurstAccumulator
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -69,5 +70,27 @@ class BurstAccumulatorTest {
 
         val r = (mergedPixels[0] shr 16) and 0xFF
         assertEquals("Averaging 15 frames of 150 must equal 150", 150, r)
+    }
+
+    @Test
+    fun testIncrementalBurstAccumulator20FramesNoOOM() {
+        val width = 4
+        val height = 4
+        val incAccumulator = BurstAccumulator.IncrementalBurstAccumulator(width, height, isFakeRaw = true)
+
+        // Add 20 frames - must succeed without memory overflow or arithmetic overflow
+        for (i in 1..20) {
+            val frame = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val pixels = IntArray(width * height) { (0xFF shl 24) or (120 shl 16) or (120 shl 8) or 120 }
+            frame.setPixels(pixels, 0, width, 0, 0, width, height)
+            incAccumulator.addFrame(frame, autoRecycle = true)
+        }
+
+        assertEquals(20, incAccumulator.frameCount)
+        val result = incAccumulator.buildResult()
+        val pixels = IntArray(width * height)
+        result.getPixels(pixels, 0, width, 0, 0, width, height)
+        val r = (pixels[0] shr 16) and 0xFF
+        assertTrue("Resulting color channel must be valid 0..255", r in 100..140)
     }
 }

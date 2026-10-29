@@ -13,8 +13,9 @@ import org.robolectric.annotation.Config
 class PermissionHelperTest {
 
     @Test
-    fun testRequiredPermissionsContainCamera() {
+    fun testRequiredPermissionsContainCameraAndAudio() {
         val permissions = PermissionHelper.getRequiredPermissions()
-        assertTrue(permissions.contains(Manifest.permission.CAMERA))
+        assertTrue("Must require CAMERA permission", permissions.contains(Manifest.permission.CAMERA))
+        assertTrue("Must require RECORD_AUDIO permission for video", permissions.contains(Manifest.permission.RECORD_AUDIO))
     }
 }

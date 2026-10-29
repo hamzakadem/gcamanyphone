@@ -12,7 +12,8 @@ enum class ImageProcessingProfile(
     val sharpenStrength: Float,
     val isAstrophotography: Boolean = false,
     val useInfiniteFocus: Boolean = false,
-    val useMaxShutter: Boolean = false
+    val useMaxShutter: Boolean = false,
+    val isFakeRaw: Boolean = false
 ) {
     /**
      * Fast single-frame capture for instant shooting or low-RAM scenarios.
@@ -68,6 +69,22 @@ enum class ImageProcessingProfile(
         isAstrophotography = true,
         useInfiniteFocus = true,
         useMaxShutter = true
+    ),
+
+    /**
+     * Intelligent Fake RAW mode.
+     * Accumulates a customizable burst of frames (up to 20+ frames) in 16-bit linear light domain,
+     * synthesizing computational RAW with massive dynamic range expansion, deep shadow recovery,
+     * and extreme highlight protection.
+     */
+    INTELLIGENT_FAKE_RAW(
+        title = "Intelligent Fake RAW (20x Linear)",
+        burstFrameCount = 20,
+        shadowBoostFactor = 2.20f,
+        highlightCompressFactor = 0.60f,
+        denoiseRadius = 2,
+        sharpenStrength = 0.35f,
+        isFakeRaw = true
     );
 
     fun next(): ImageProcessingProfile {

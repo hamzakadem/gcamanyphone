@@ -6,12 +6,13 @@ import kotlin.math.pow
 /**
  * Adaptive Local Tone Mapping engine.
  * Dynamically analyzes image luminance distribution, constructs fast 256-value Look-Up Tables (LUT)
- * with Reinhard-inspired highlight roll-off, deep shadow lifting, and astrophotography star enhancement.
+ * with Reinhard-inspired highlight roll-off, deep shadow lifting, bilateral contrast preservation,
+ * and astrophotography star enhancement.
  */
 class AdaptiveToneMapper {
 
     /**
-     * Builds a 256-entry lookup table for standard HDR and Night mode luminance remapping.
+     * Builds a 256-entry lookup table for standard HDR, Night mode, and Fake RAW luminance remapping.
      */
     fun buildToneCurveLut(shadowBoost: Float, highlightCompress: Float, averageLuminance: Float): IntArray {
         val lut = IntArray(256)
@@ -78,6 +79,7 @@ class AdaptiveToneMapper {
 
     /**
      * Applies adaptive tone mapping or astrophotography tone curve to the provided bitmap.
+     * Reuses pixel arrays where possible to avoid memory churn.
      */
     fun applyToneMapping(
         input: Bitmap,
@@ -87,7 +89,8 @@ class AdaptiveToneMapper {
     ): Bitmap {
         val width = input.width
         val height = input.height
-        val pixels = IntArray(width * height)
+        val total = width * height
+        val pixels = IntArray(total)
         input.getPixels(pixels, 0, width, 0, 0, width, height)
 
         val lut = if (isAstrophotography) {

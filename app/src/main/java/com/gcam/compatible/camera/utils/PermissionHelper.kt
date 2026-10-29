@@ -18,6 +18,13 @@ object PermissionHelper {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    fun hasAudioPermission(context: Context): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     fun hasStoragePermission(context: Context): Boolean {
         // Scoped storage on Android 10+ (API 29+) does not require WRITE_EXTERNAL_STORAGE to save to MediaStore
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -30,13 +37,17 @@ object PermissionHelper {
     }
 
     fun getRequiredPermissions(): Array<String> {
-        val permissions = mutableListOf(Manifest.permission.CAMERA)
+        val permissions = mutableListOf(
+            Manifest.permission.CAMERA,
+            Manifest.permission.RECORD_AUDIO
+        )
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
+            permissions.add(Manifest.permission.READ_MEDIA_VIDEO)
         }
 
         return permissions.toTypedArray()

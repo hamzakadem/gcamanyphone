@@ -2,17 +2,25 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="camera_bg">#FF0E0E0E</color>
-    <color name="camera_overlay">#66000000</color>
-    <color name="camera_accent">#FF4CAF50</color>
-    <color name="camera_accent_dark">#FF388E3C</color>
+    <color name="camera_bg">#FF0A0A0C</color>
+    <color name="camera_overlay">#80101014</color>
+    <color name="camera_surface_glass">#B3181820</color>
+    <color name="camera_surface_card">#D91C1D24</color>
+    <color name="camera_accent">#FF00E676</color>
+    <color name="camera_accent_dark">#FF00B0FF</color>
     <color name="camera_gold">#FFFFD54F</color>
+    <color name="camera_red">#FFFF1744</color>
+    <color name="camera_tab_unselected">#99FFFFFF</color>
+    <color name="camera_tab_selected">#FFFFD54F</color>
     <color name="shutter_outer">#FFFFFFFF</color>
     <color name="shutter_inner">#FFFFFFFF</color>
     <color name="shutter_inner_pressed">#FFAAAAAA</color>
+    <color name="shutter_video_inner">#FFFF1744</color>
     <color name="banner_bg">#CC212121</color>
     <color name="banner_text">#FFFFFFFF</color>
     <color name="badge_legacy">#FFE57373</color>
     <color name="badge_limited">#FFFFB74D</color>
     <color name="badge_full">#FF81C784</color>
+    <color name="pill_bg">#59202028</color>
+    <color name="pill_stroke">#33FFFFFF</color>
 </resources>

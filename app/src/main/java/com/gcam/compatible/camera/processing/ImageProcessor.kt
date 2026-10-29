@@ -10,14 +10,21 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
 /**
- * Computational photography coordinator that manages the complete image post-processing pipeline.
- * Supports memory-safe incremental multi-frame burst merging (15 frames in Night Mode, 10 frames in Astro).
+ * Computational photography coordinator managing the complete high-dynamic-range pipeline.
+ *
+ * Supports:
+ * - Incremental multi-frame burst merging (up to 20+ frames without OOM crashes)
+ * - Intelligent Fake RAW computational synthesis in 16-bit linear light domain
+ * - Universal Synthetic Log transfer curve
+ * - 3D / 1D LUT filtering
+ * - Adaptive tone mapping and bilateral edge preservation
  */
 class ImageProcessor(
     private val memoryGuard: MemoryGuard = MemoryGuard(),
     private val toneMapper: AdaptiveToneMapper = AdaptiveToneMapper(),
     private val burstAccumulator: BurstAccumulator = BurstAccumulator(),
-    private val edgeDenoise: EdgePreservingDenoise = EdgePreservingDenoise()
+    private val edgeDenoise: EdgePreservingDenoise = EdgePreservingDenoise(),
+    private val lutEngine: LutEngine = LutEngine()
 ) {
 
     companion object {
@@ -26,13 +33,17 @@ class ImageProcessor(
     }
 
     /**
-     * Processes a burst of captured frames (e.g. 15 frames for Night Mode, 10 frames for Astrophotography).
-     * Decodes and accumulates frames incrementally to prevent OutOfMemoryError.
+     * Processes a burst of captured frames (e.g. 15 frames for Night Mode, 20 frames for Intelligent Fake RAW).
+     * Decodes and accumulates frames incrementally with IntArray buffers and auto-recycling to prevent OutOfMemoryError.
      */
     suspend fun processCaptureBurst(
         frames: List<ByteArray>,
         rotationDegrees: Int,
         profile: ImageProcessingProfile,
+        useSyntheticLog: Boolean = false,
+        lutPreset: LutEngine.Preset = LutEngine.Preset.NATURAL,
+        customLut: LutEngine.Lut3D? = null,
+        customBurstCount: Int? = null,
         onProgress: ((String) -> Unit)? = null
     ): ProcessedImageResult = withContext(Dispatchers.Default) {
         require(frames.isNotEmpty()) { "Captured frames list must not be empty" }
@@ -62,16 +73,23 @@ class ImageProcessor(
         val mergedBitmap: Bitmap
         val actualMergedCount: Int
 
-        if (frames.size == 1) {
+        val totalToMerge = (customBurstCount ?: profile.burstFrameCount).coerceAtMost(frames.size)
+
+        if (totalToMerge <= 1 && !profile.isFakeRaw) {
             mergedBitmap = baseBitmap
             actualMergedCount = 1
         } else {
-            // Incremental multi-frame accumulation (15 frames Night / 10 frames Astro)
-            val accumulator = BurstAccumulator.IncrementalBurstAccumulator(width, height)
+            // Incremental multi-frame accumulation (15 frames Night / 20 frames Fake RAW)
+            val accumulator = BurstAccumulator.IncrementalBurstAccumulator(
+                width = width,
+                height = height,
+                isFakeRaw = profile.isFakeRaw,
+                enableDeGhosting = !profile.isAstrophotography // Keep star pinpoints sharp in Astro
+            )
             accumulator.addFrame(baseBitmap, autoRecycle = true)
 
-            for (i in 1 until frames.size) {
-                onProgress?.invoke("Merging frame ${i + 1} of ${frames.size}...")
+            for (i in 1 until totalToMerge) {
+                onProgress?.invoke("Merging frame ${i + 1} of $totalToMerge...")
                 try {
                     val frameDecoded = BitmapFactory.decodeByteArray(frames[i], 0, frames[i].size, decodeOptions)
                     if (frameDecoded != null) {
@@ -91,7 +109,13 @@ class ImageProcessor(
         var currentBitmap = mergedBitmap
 
         // Step 3: Adaptive Tone Mapping (or specialized Astrophotography curve)
-        onProgress?.invoke(if (profile.isAstrophotography) "Applying Astrophotography Star Curve..." else "Applying Adaptive Tone Mapping...")
+        onProgress?.invoke(
+            when {
+                profile.isAstrophotography -> "Applying Astrophotography Star Curve..."
+                profile.isFakeRaw -> "Reconstructing 16-bit Linear RAW Tone Curves..."
+                else -> "Applying Adaptive Tone Mapping..."
+            }
+        )
         try {
             val toneMapped = toneMapper.applyToneMapping(
                 currentBitmap,
@@ -107,7 +131,43 @@ class ImageProcessor(
             Log.w(TAG, "OOM during tone mapping stage; skipping", e)
         }
 
-        // Step 4: Spatial Sharpening and Edge Preservation
+        // Step 4: Synthetic Log Profile & LUT Filtering
+        if (useSyntheticLog) {
+            onProgress?.invoke("Applying Universal Synthetic Log Profile...")
+            try {
+                val logApplied = lutEngine.applySyntheticLog(currentBitmap)
+                if (logApplied != currentBitmap) {
+                    currentBitmap.recycle()
+                }
+                currentBitmap = logApplied
+            } catch (e: OutOfMemoryError) {
+                Log.w(TAG, "OOM during synthetic log; skipping", e)
+            }
+        } else if (customLut != null) {
+            onProgress?.invoke("Applying 3D .cube LUT (${customLut.name})...")
+            try {
+                val lutApplied = lutEngine.apply3dLut(currentBitmap, customLut)
+                if (lutApplied != currentBitmap) {
+                    currentBitmap.recycle()
+                }
+                currentBitmap = lutApplied
+            } catch (e: OutOfMemoryError) {
+                Log.w(TAG, "OOM during custom LUT application; skipping", e)
+            }
+        } else if (lutPreset != LutEngine.Preset.NATURAL) {
+            onProgress?.invoke("Applying Cinematic Filter (${lutPreset.displayName})...")
+            try {
+                val presetApplied = lutEngine.applyPreset(currentBitmap, lutPreset)
+                if (presetApplied != currentBitmap) {
+                    currentBitmap.recycle()
+                }
+                currentBitmap = presetApplied
+            } catch (e: OutOfMemoryError) {
+                Log.w(TAG, "OOM during LUT preset; skipping", e)
+            }
+        }
+
+        // Step 5: Spatial Sharpening and Edge Preservation
         if (profile.sharpenStrength > 0.05f) {
             onProgress?.invoke("Sharpening fine details...")
             try {
@@ -124,7 +184,7 @@ class ImageProcessor(
             }
         }
 
-        // Step 5: High-Quality JPEG Encoding
+        // Step 6: High-Quality JPEG Encoding
         onProgress?.invoke("Compressing output photo...")
         val outputStream = ByteArrayOutputStream()
         currentBitmap.compress(Bitmap.CompressFormat.JPEG, 95, outputStream)

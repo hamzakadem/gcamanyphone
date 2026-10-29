@@ -13,6 +13,7 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
 
     <!-- Vibration feedback for shutter -->
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -35,6 +36,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.GCamCompatibleCamera"
+        android:largeHeap="true"
         android:hardwareAccelerated="true">
 
         <activity

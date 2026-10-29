@@ -7,7 +7,7 @@
     android:layout_height="match_parent"
     android:background="@color/black">
 
-    <!-- Camera Preview View -->
+    <!-- Camera Viewfinder -->
     <androidx.camera.view.PreviewView
         android:id="@+id/viewFinder"
         android:layout_width="0dp"
@@ -29,7 +29,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Top control bar -->
+    <!-- Modern Top Control Pill Bar -->
     <LinearLayout
         android:id="@+id/topBar"
         android:layout_width="0dp"
@@ -37,90 +37,392 @@
         android:background="@color/camera_overlay"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:padding="12dp"
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
+        <!-- Flash Pill Button -->
         <ImageButton
             android:id="@+id/btnFlash"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_pill"
             android:contentDescription="@string/flash_auto"
+            android:padding="8dp"
             android:src="@drawable/ic_flash_auto" />
 
+        <Space
+            android:layout_width="8dp"
+            android:layout_height="wrap_content" />
+
+        <!-- Pro Manual Controls Toggle Pill -->
         <TextView
-            android:id="@+id/tvProfileChip"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:id="@+id/btnProToggle"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_pill"
             android:gravity="center"
-            android:text="@string/mode_hdr"
-            android:textColor="@color/camera_gold"
-            android:textSize="14sp"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="@string/pro_controls"
+            android:textColor="@color/white"
+            android:textSize="12sp"
             android:textStyle="bold" />
 
+        <Space
+            android:layout_width="8dp"
+            android:layout_height="wrap_content" />
+
+        <!-- Synthetic Log Toggle Pill -->
+        <TextView
+            android:id="@+id/btnLogToggle"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_pill"
+            android:gravity="center"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="@string/synthetic_log"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <Space
+            android:layout_width="8dp"
+            android:layout_height="wrap_content" />
+
+        <!-- LUTs Selector Pill -->
+        <TextView
+            android:id="@+id/btnLutSelector"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_pill"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="1"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:text="@string/luts_filter"
+            android:textColor="@color/camera_gold"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <Space
+            android:layout_width="8dp"
+            android:layout_height="wrap_content" />
+
+        <!-- Settings Button -->
         <ImageButton
             android:id="@+id/btnSettings"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_pill"
             android:contentDescription="@string/settings"
+            android:padding="8dp"
             android:src="@drawable/ic_settings" />
     </LinearLayout>
 
-    <!-- Hardware Capability Badge -->
+    <!-- Camera Hardware Capability Badge -->
     <TextView
         android:id="@+id/tvHardwareBadge"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="6dp"
         android:background="@drawable/bg_badge"
         android:text="@string/camera_hardware_level"
         android:textColor="@color/white"
-        android:textSize="11sp"
+        android:textSize="10sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/topBar" />
 
-    <!-- Processing progress overlay -->
+    <!-- Recording Indicator Bar for Video -->
+    <LinearLayout
+        android:id="@+id/layoutRecordingIndicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/bg_badge"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="6dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvHardwareBadge">
+
+        <View
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:background="@drawable/bg_pill_active"
+            android:backgroundTint="@color/camera_red" />
+
+        <TextView
+            android:id="@+id/tvRecordingTimer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="00:00"
+            android:textColor="@color/camera_red"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Pro Manual Controls Drawer Panel -->
+    <LinearLayout
+        android:id="@+id/layoutProControls"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_pro_panel"
+        android:elevation="10dp"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="12dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/layoutModes"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <!-- ISO Control Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvIsoLabel"
+                android:layout_width="60dp"
+                android:layout_height="wrap_content"
+                android:text="ISO: Auto"
+                android:textColor="@color/camera_gold"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <SeekBar
+                android:id="@+id/sbIso"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="7"
+                android:progress="0"
+                android:thumbTint="@color/camera_gold" />
+        </LinearLayout>
+
+        <!-- Shutter Speed Control Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvShutterLabel"
+                android:layout_width="60dp"
+                android:layout_height="wrap_content"
+                android:text="S: Auto"
+                android:textColor="@color/camera_gold"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <SeekBar
+                android:id="@+id/sbShutter"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="8"
+                android:progress="0"
+                android:thumbTint="@color/camera_gold" />
+        </LinearLayout>
+
+        <!-- White Balance (Kelvin) Control Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvWbLabel"
+                android:layout_width="60dp"
+                android:layout_height="wrap_content"
+                android:text="WB: Auto"
+                android:textColor="@color/camera_gold"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <SeekBar
+                android:id="@+id/sbWb"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="6"
+                android:progress="0"
+                android:thumbTint="@color/camera_gold" />
+        </LinearLayout>
+
+        <!-- Fake RAW Frame Count Selector Row -->
+        <LinearLayout
+            android:id="@+id/rowFakeRawFrames"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvFrameCountLabel"
+                android:layout_width="60dp"
+                android:layout_height="wrap_content"
+                android:text="RAW: 20x"
+                android:textColor="@color/camera_accent"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <SeekBar
+                android:id="@+id/sbFakeRawFrames"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="25"
+                android:min="2"
+                android:progress="20"
+                android:thumbTint="@color/camera_accent" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Multi-Frame Processing Progress Badge -->
     <LinearLayout
         android:id="@+id/layoutProcessing"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:background="@drawable/bg_badge"
+        android:elevation="12dp"
         android:gravity="center"
         android:orientation="horizontal"
         android:padding="12dp"
         android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@id/bottomBar"
+        app:layout_constraintBottom_toTopOf="@id/layoutModes"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tvHardwareBadge">
 
         <ProgressBar
             android:id="@+id/progressProcessing"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
             android:indeterminateTint="@color/camera_accent" />
 
         <TextView
             android:id="@+id/tvProcessingStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="10dp"
             android:text="@string/processing_photo"
             android:textColor="@color/white"
             android:textSize="13sp" />
     </LinearLayout>
 
-    <!-- Bottom Controls Panel -->
+    <!-- Modern Bottom Camera Mode Carousel -->
+    <HorizontalScrollView
+        android:id="@+id/layoutModes"
+        android:layout_width="0dp"
+        android:layout_height="44dp"
+        android:background="@color/camera_overlay"
+        android:fillViewport="true"
+        android:scrollbars="none"
+        app:layout_constraintBottom_toTopOf="@id/bottomBar"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp">
+
+            <TextView
+                android:id="@+id/tabNight"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:text="@string/tab_night"
+                android:textColor="@color/camera_tab_unselected"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tabPhoto"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:text="@string/tab_photo"
+                android:textColor="@color/camera_tab_selected"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tabVideo"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:text="@string/tab_video"
+                android:textColor="@color/camera_tab_unselected"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tabFakeRaw"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:text="@string/tab_fake_raw"
+                android:textColor="@color/camera_tab_unselected"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tabAstro"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:text="@string/tab_astro"
+                android:textColor="@color/camera_tab_unselected"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- Modern Bottom Controls Panel -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/bottomBar"
         android:layout_width="0dp"
-        android:layout_height="120dp"
-        android:background="@color/camera_overlay"
+        android:layout_height="110dp"
+        android:background="@color/black"
         android:paddingStart="24dp"
         android:paddingEnd="24dp"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -130,8 +432,8 @@
         <!-- Photo Review Thumbnail -->
         <ImageView
             android:id="@+id/ivThumbnail"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
             android:background="@drawable/bg_thumbnail"
             android:clipToOutline="true"
             android:contentDescription="@string/photo_saved"
@@ -140,25 +442,42 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <!-- Shutter Button -->
-        <ImageButton
-            android:id="@+id/btnShutter"
-            android:layout_width="76dp"
-            android:layout_height="76dp"
-            android:background="@drawable/btn_shutter"
-            android:contentDescription="@string/shutter"
+        <!-- Shutter Button Container -->
+        <FrameLayout
+            android:layout_width="84dp"
+            android:layout_height="84dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_constraintTop_toTopOf="parent">
 
-        <!-- Camera Switch (Front/Back) Button -->
+            <ProgressBar
+                android:id="@+id/progressShutter"
+                android:layout_width="84dp"
+                android:layout_height="84dp"
+                android:indeterminate="false"
+                android:max="100"
+                android:progress="0"
+                android:progressDrawable="@drawable/bg_pill_active"
+                android:visibility="gone" />
+
+            <ImageButton
+                android:id="@+id/btnShutter"
+                android:layout_width="76dp"
+                android:layout_height="76dp"
+                android:layout_gravity="center"
+                android:background="@drawable/btn_shutter"
+                android:contentDescription="@string/shutter" />
+        </FrameLayout>
+
+        <!-- Camera Lens Switch Button -->
         <ImageButton
             android:id="@+id/btnSwitchCamera"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:background="@drawable/bg_pill"
             android:contentDescription="@string/switch_camera"
+            android:padding="12dp"
             android:src="@drawable/ic_switch_camera"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"

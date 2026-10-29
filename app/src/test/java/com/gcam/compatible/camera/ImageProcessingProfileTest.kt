@@ -20,6 +20,9 @@ class ImageProcessingProfileTest {
         assertEquals(ImageProcessingProfile.ASTROPHOTOGRAPHY, profile)
 
         profile = profile.next()
+        assertEquals(ImageProcessingProfile.INTELLIGENT_FAKE_RAW, profile)
+
+        profile = profile.next()
         assertEquals(ImageProcessingProfile.FAST_SINGLE_FRAME, profile)
     }
 
@@ -36,5 +39,13 @@ class ImageProcessingProfileTest {
         assertTrue("Astrophotography must lock focus to infinity", astro.useInfiniteFocus)
         assertTrue("Astrophotography must use maximum shutter / exposure", astro.useMaxShutter)
         assertTrue("Astrophotography flag must be enabled", astro.isAstrophotography)
+    }
+
+    @Test
+    fun testIntelligentFakeRawParameters() {
+        val fakeRaw = ImageProcessingProfile.INTELLIGENT_FAKE_RAW
+        assertEquals("Intelligent Fake RAW defaults to 20 frames", 20, fakeRaw.burstFrameCount)
+        assertTrue("Fake RAW flag must be enabled", fakeRaw.isFakeRaw)
+        assertTrue("Shadow boost must be strong for RAW DR expansion", fakeRaw.shadowBoostFactor >= 2.0f)
     }
 }

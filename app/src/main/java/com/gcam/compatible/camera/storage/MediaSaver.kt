@@ -12,13 +12,15 @@ import androidx.exifinterface.media.ExifInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /**
- * Handles saving captured JPEG images to public MediaStore across all Android API versions (21 through 34).
+ * Handles saving captured JPEG images and recorded MP4 videos to public MediaStore
+ * across all Android API versions (21 through 34).
  */
 class MediaSaver(private val context: Context) {
 
@@ -80,7 +82,6 @@ class MediaSaver(private val context: Context) {
                     Log.w(TAG, "Failed to write EXIF tags", e)
                 }
 
-                // Trigger MediaScanner so the photo appears in Gallery immediately
                 var scannedUri: Uri? = null
                 MediaScannerConnection.scanFile(
                     context,
@@ -99,9 +100,75 @@ class MediaSaver(private val context: Context) {
         }
     }
 
-    data class SavedMediaInfo(
-        val uri: Uri?,
-        val filePath: String?,
-        val fileName: String
-    )
+    suspend fun saveVideo(
+        videoFile: File
+    ): Result<SavedMediaInfo> = withContext(Dispatchers.IO) {
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val filename = "VID_${timestamp}_GCamLite.mp4"
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.Video.Media.DISPLAY_NAME, filename)
+                    put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                    put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_DCIM}/$ALBUM_NAME")
+                    put(MediaStore.Video.Media.IS_PENDING, 1)
+                }
+
+                val collection = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                val uri = context.contentResolver.insert(collection, contentValues)
+                    ?: return@withContext Result.failure(IllegalStateException("Failed to insert video into MediaStore"))
+
+                context.contentResolver.openOutputStream(uri)?.use { output ->
+                    FileInputStream(videoFile).use { input ->
+                        input.copyTo(output)
+                    }
+                }
+
+                contentValues.clear()
+                contentValues.put(MediaStore.Video.Media.IS_PENDING, 0)
+                context.contentResolver.update(uri, contentValues, null, null)
+
+                Result.success(SavedMediaInfo(uri, null, filename))
+            } else {
+                val dcimDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
+                val appDir = File(dcimDir, ALBUM_NAME)
+                if (!appDir.exists()) {
+                    appDir.mkdirs()
+                }
+
+                val outFile = File(appDir, filename)
+                FileInputStream(videoFile).use { input ->
+                    FileOutputStream(outFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+
+                var scannedUri: Uri? = null
+                MediaScannerConnection.scanFile(
+                    context,
+                    arrayOf(outFile.absolutePath),
+                    arrayOf("video/mp4")
+                ) { _, uri ->
+                    scannedUri = uri
+                }
+
+                Result.success(SavedMediaInfo(scannedUri, outFile.absolutePath, filename))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save video: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    fun createTempVideoFile(): File {
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        return File.createTempFile("VID_${timestamp}_", ".mp4", context.cacheDir)
+    }
 }
+
+data class SavedMediaInfo(
+    val uri: Uri?,
+    val absolutePath: String?,
+    val filename: String
+)
