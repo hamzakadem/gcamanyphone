@@ -84,7 +84,7 @@ class LutEngineTest {
         val processed = lutEngine.applyPreset(bitmap, LutEngine.Preset.TEAL_ORANGE)
         assertNotNull(processed)
         val outPixels = IntArray(4)
-        processed.getPixels(outPixels, 0, 2, 0, 2, 2, 2)
+        processed.getPixels(outPixels, 0, 2, 0, 0, 2, 2)
         // Verify valid image output
         assertTrue(outPixels[0] != 0)
     }
